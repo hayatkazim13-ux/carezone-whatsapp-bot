@@ -45,8 +45,11 @@ client.on('qr', async (qr) => {
     console.log('===========================================================\n');
     qrcode.generate(qr, { small: true });
     
-    // Note: Phone number pairing API is currently unstable with the latest WhatsApp Web update.
-    // We are forcing the QR code method exclusively to prevent crashes.
+    // Fallback: Generate a clickable web link with a perfect image!
+    const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qr)}`;
+    console.log('\n🚨 IF THE SQUARE ABOVE IS BROKEN, CLICK THIS LINK TO OPEN A PERFECT PICTURE:');
+    console.log(qrLink);
+    console.log('===========================================================\n');
 });
 
 client.on('ready', () => {
