@@ -1,0 +1,22 @@
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Classic White T-Shirt",
+      "price": "$15.00",
+      "description": "100% cotton classic white t-shirt. Available in S, M, L, XL."
+    },
+    {
+      "id": 2,
+      "name": "Blue Denim Jeans",
+      "price": "$40.00",
+      "description": "Comfortable fit blue denim jeans."
+    },
+    {
+      "id": 3,
+      "name": "Leather Wallet",
+      "price": "$25.00",
+      "description": "Genuine leather wallet with multiple card slots."
+    }
+  ]
+}
