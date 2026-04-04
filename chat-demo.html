@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WhatsApp Bot Demo</title>
+<style>
+  body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    background-color: #2c2c2c;
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  }
+  .phone {
+    width: 350px;
+    height: 650px;
+    background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+    background-size: cover;
+    border-radius: 40px;
+    box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    position: relative;
+    border: 12px solid #111;
+  }
+  .header {
+    background-color: #075e54;
+    color: white;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    font-size: 18px;
+    font-weight: bold;
+    z-index: 10;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  }
+  .header img {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    margin-right: 15px;
+    border: 2px solid white;
+  }
+  .chat-container {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .message {
+    max-width: 80%;
+    padding: 10px 15px;
+    border-radius: 12px;
+    font-size: 15px;
+    line-height: 1.4;
+    position: relative;
+    animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  .msg-incoming {
+    background-color: #ffffff;
+    align-self: flex-start;
+    border-top-left-radius: 0;
+  }
+  .msg-outgoing {
+    background-color: #dcf8c6;
+    align-self: flex-end;
+    border-top-right-radius: 0;
+  }
+  .typing {
+    display: none;
+    background-color: #ffffff;
+    align-self: flex-start;
+    padding: 10px 15px;
+    border-radius: 15px;
+    border-top-left-radius: 0;
+    font-style: italic;
+    color: #128c7e;
+    font-weight: 500;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+  }
+  @keyframes popIn {
+    from { opacity: 0; transform: scale(0.9) translateY(10px); }
+    to { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .footer {
+    background-color: #f0f0f0;
+    padding: 10px;
+    display: flex;
+    align-items: center;
+  }
+  .input-bar {
+    flex: 1;
+    background: white;
+    padding: 12px 20px;
+    border-radius: 25px;
+    color: #999;
+    font-size: 15px;
+  }
+  
+  /* Scrollbar hiding for better mockup */
+  ::-webkit-scrollbar {
+    width: 0px;
+    background: transparent;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+  <div class="header">
+    <img src="https://ui-avatars.com/api/?name=Al+Maida&background=25D366&color=fff&bold=true" alt="Al-Maida">
+    Al-Maida Bot
+  </div>
+  <div class="chat-container" id="chat">
+    <div class="typing" id="typing">Al-Maida is typing...</div>
+  </div>
+  <div class="footer">
+    <div class="input-bar">Type a message...</div>
+  </div>
+</div>
+
+<script>
+  const chat = document.getElementById('chat');
+  const typing = document.getElementById('typing');
+
+  const script = [
+    { type: 'in', text: 'Hi, can I see the menu?', delay: 1000 },
+    { type: 'out', text: 'Welcome to *Al-Maida Restaurant*! 🍽️<br><br>Here is our menu:<br>1️⃣ Chicken Biryani - $8<br>2️⃣ Beef Burger - $5<br>3️⃣ Zinger Wrap - $6<br>4️⃣ Cold Drink - $2<br><br>Please reply with the *items and quantities* you want to order.', delay: 2000 },
+    { type: 'in', text: 'I want 2 Beef Burgers and 2 Cold Drinks', delay: 3500 },
+    { type: 'out', text: 'Great choice! Let me confirm your cart: 🛒<br><br>- 2x Beef Burger ($10)<br>- 2x Cold Drink ($4)<br><br>*Total: $14*<br><br>Reply *YES* to confirm this order.', delay: 2500 },
+    { type: 'in', text: 'YES', delay: 2000 },
+    { type: 'out', text: '✅ *Order Confirmed!* <br><br>Your Order ID is *#10542*.<br>It will be ready for pickup in 15 minutes. Thank you for choosing Al-Maida!', delay: 2000 }
+  ];
+
+  let currentTime = 500;
+
+  function addMessage(msg) {
+    const div = document.createElement('div');
+    div.className = 'message ' + (msg.type === 'in' ? 'msg-outgoing' : 'msg-incoming');
+    div.innerHTML = msg.text;
+    chat.insertBefore(div, typing);
+    chat.scrollTop = chat.scrollHeight;
+  }
+
+  script.forEach(msg => {
+    currentTime += msg.delay;
+    
+    // Simulate typing indicator for bot messages
+    if(msg.type === 'out') {
+      setTimeout(() => {
+        typing.style.display = 'block';
+        chat.scrollTop = chat.scrollHeight;
+      }, currentTime - 1200); 
+    }
+
+    setTimeout(() => {
+      typing.style.display = 'none';
+      addMessage(msg);
+    }, currentTime);
+  });
+</script>
+</body>
+</html>

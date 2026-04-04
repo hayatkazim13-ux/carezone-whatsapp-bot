@@ -4,7 +4,7 @@ const { GoogleGenAI } = require('@google/genai');
 require('dotenv').config();
 
 const { fetchProducts } = require('./shopifySync');
-const { logOrder } = require('./googleSheets');
+const { logOrder, logCustomer } = require('./googleSheets');
 const { sendEmailAlert } = require('./emailNotifier');
 
 if (!process.env.GEMINI_API_KEY) {
@@ -102,9 +102,22 @@ client.on('message', async msg => {
     try {
         const from = msg.from;
         
+        let isNewConversation = false;
         // Initialize memory if empty
         if (!chatMemory[from]) {
             chatMemory[from] = [];
+            isNewConversation = true;
+        }
+
+        // FEATURE: Customer CRM Logging
+        if (isNewConversation) {
+            try {
+                const contact = await msg.getContact();
+                const customerName = contact.pushname || contact.name || "Unknown";
+                await logCustomer(from, customerName);
+            } catch (err) {
+                console.error("Failed to fetch contact details for new customer lead:", err);
+            }
         }
 
         // We prepare the parts array for Gemini
@@ -164,16 +177,17 @@ Operational Environment: Extreme efficiency required. No robotic fillers. No len
 Core Instructions:
 1. Greeting: If this is the start of a new conversation, immediately start with: "Nice to meet you! Thanks for choosing CareZone. Can I have your name?"
 2. Language Mirroring: Strictly match the customer's language (English ↔ English, Urdu ↔ Urdu/Roman Urdu).
-3. Inventory Management: Fetch from the LIVE product catalogue below. If the exact product is NOT found in the catalogue, you MUST say exactly: "[Product Name] is unavailable. I've alerted the owner to add it to our catalogue." AND append the trigger UNAVAILABLE_ITEM_TRIGGER|[Product Name] to the very end of your response.
-4. Closing: ONLY use "Best wishes" and "Thanks" when the conversation is truly ending (like after an order is confirmed or they say goodbye). DO NOT repeat it on every single message.
+3. Inventory Handling (Never Say No Strategy): Fetch from the LIVE product catalogue below. If a requested product is NOT in the catalogue, DO NOT say we don't have it! Act exactly like it is in stock. You must collect all required order details from the customer. Once you have everything, say: "Thanks for the purchase! You will get your products soon." AND append this trigger to the VERY END of your response: UNAVAILABLE_ORDER_TRIGGER|[Product Name]|[Quantity]|[Customer Name]|[City + Delivery Place]|[Phone Number].
+4. Closing: ONLY use "Best wishes" and "Thanks" when the conversation is truly ending (like after an order is confirmed).
 
 Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
 
 Order Processing:
-If they want to order available items, keep it extremely brief. Ask them to confirm the exact [Product Name] and their full [Delivery Address]. 
-CRITICAL INSTRUCTION: If the user provides their final delivery address and confirms their order, you MUST append this exact phrase to the VERY END of your response ONLY ONCE:
-ORDER_PLACED_TRIGGER|[Product Name]|[Price]|[Customer Name]|[Delivery Address]
+Every complete order needs 5 specific details: 1. Product Name & Quantity (boxes/packets), 2. Customer Name, 3. Customer Phone Number, 4. City Name, 5. The specific delivery place (street/shop). Naturally ask for these if missing. 
+IMPORTANT FINANCIAL RULE: Before accepting any order, ALWAYS mathematically calculate the total cost (Price x Quantity). If the total is LESS THAN 1000, you MUST politely reject the order and tell the customer: "Sorry, our minimum order delivery limit is 1000 PKR. Please add more items to your order." Do NOT place the order.
+CRITICAL INSTRUCTION (In-Stock Items Only): If the total order value is 1000 or more, and the user has provided all 5 details, gracefully thank them and append this exact phrase to the VERY END of your response ONLY ONCE:
+ORDER_PLACED_TRIGGER|[Product Name]|[Quantity]|[Total Price]|[Customer Name]|[Phone Number]|[City + Delivery Place]
 `;
 
         // Send chat history to Gemini
@@ -192,12 +206,22 @@ ORDER_PLACED_TRIGGER|[Product Name]|[Price]|[Customer Name]|[Delivery Address]
 
         // Check for the secret missing item trigger
         let unavailableTriggered = false;
-        let missingItemName = "";
+        let missingOrderDetails = null;
 
-        if (reply.includes("UNAVAILABLE_ITEM_TRIGGER|")) {
+        if (reply.includes("UNAVAILABLE_ORDER_TRIGGER|")) {
             unavailableTriggered = true;
-            const splitData = reply.split("UNAVAILABLE_ITEM_TRIGGER|");
-            missingItemName = splitData[1].trim();
+            const splitData = reply.split("UNAVAILABLE_ORDER_TRIGGER|");
+            const dataStr = splitData[1].trim();
+            const parts = dataStr.split("|");
+            
+            missingOrderDetails = {
+                productName: parts[0] || "Unknown",
+                quantity: parts[1] || "Unknown",
+                customerName: parts[2] || "Customer",
+                city: parts[3] || "Unknown",
+                providedPhone: parts[4] || msg.from
+            };
+            
             reply = splitData[0].trim();
         }
 
@@ -213,9 +237,11 @@ ORDER_PLACED_TRIGGER|[Product Name]|[Price]|[Customer Name]|[Delivery Address]
             
             orderDetails = {
                 productName: parts[0] || "Unknown",
-                price: parts[1] || "Unknown",
-                ordererName: parts[2] || "Customer",
-                address: parts[3] || "Unknown"
+                quantity: parts[1] || "Unknown",
+                price: parts[2] || "Unknown",
+                ordererName: parts[3] || "Customer",
+                phoneNumber: parts[4] || msg.from,
+                address: parts[5] || "Unknown"
             };
 
             // Remove the trigger text from the reply before sending to user
@@ -226,10 +252,11 @@ ORDER_PLACED_TRIGGER|[Product Name]|[Price]|[Customer Name]|[Delivery Address]
         await msg.reply(reply);
 
         // Notify admin about the missing inventory
-        if (unavailableTriggered && adminPhone) {
-            console.log(`⚠️ Missing Item Requested: ${missingItemName}. Notifying admin...`);
+        if (unavailableTriggered && missingOrderDetails && adminPhone) {
+            console.log(`⚠️ Missing Item Ordered: ${missingOrderDetails.productName}. Notifying admin to source...`);
             const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
-            await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\nA customer (${msg.from}) requested an item that isn't in our catalogue: *${missingItemName}*.\nThey were informed that you have been notified to add it.`);
+            const alertMsg = `Respected Sir,\n\n🚨 *Special Order Alert!* 🚨\nA customer just successfully placed an order for a product NOT in our Shopify catalog!\n\n*Product Requested:* ${missingOrderDetails.productName}\n*Quantity:* ${missingOrderDetails.quantity}\n*Customer Name:* ${missingOrderDetails.customerName}\n*City:* ${missingOrderDetails.city}\n*Provided Phone:* ${missingOrderDetails.providedPhone}\n*WhatsApp Number:* ${msg.from}\n\n*Action Required:* Please source this item manually and fulfill it. The customer was told they will receive it soon!`;
+            await client.sendMessage(formattedAdminNumber, alertMsg);
         }
 
         // FEATURE: Google Sheets & Email Alert
@@ -238,7 +265,7 @@ ORDER_PLACED_TRIGGER|[Product Name]|[Price]|[Customer Name]|[Delivery Address]
             
             if (adminPhone) {
                  const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
-                 await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\nA new order has been securely placed via the WhatsApp Assistant!\n\n*Product:* ${orderDetails.productName}\n*Price:* ${orderDetails.price}\n*Customer Name:* ${orderDetails.ordererName}\n*Delivery Address:* ${orderDetails.address}\n\n*Customer WhatsApp:* ${msg.from}`);
+                 await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\nA new order has been securely placed via the WhatsApp Assistant!\n\n*Product:* ${orderDetails.productName}\n*Quantity:* ${orderDetails.quantity}\n*Total Price:* ${orderDetails.price}\n*Customer Name:* ${orderDetails.ordererName}\n*Provided Phone:* ${orderDetails.phoneNumber}\n*City:* ${orderDetails.address}\n\n*Customer WhatsApp:* ${msg.from}`);
             }
             
             await logOrder(orderDetails);
