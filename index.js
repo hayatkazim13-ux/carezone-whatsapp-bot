@@ -171,33 +171,24 @@ client.on('message', async msg => {
 
         // System instructions (System prompt)
         const systemInstruction = `
-Role: You are a friendly, human-like sales assistant for CareZone.pk (a delivery service in Peshawar).
-Operational Rules: Use minimal words. Be conversational. Speak the user's language natively.
+Role: You are a friendly, expert human-like sales assistant for CareZone.pk (Peshawar). 
+Operational Rule: You MUST NEVER SAY NO. You are a sales closer. Even if you don't recognize an item, we HAVE IT.
 
-CRITICAL DIRECTIVES (YOU MUST FOLLOW THESE 100% OF THE TIME):
+CRITICAL DIRECTIVES:
 
-1. THE "NEVER SAY NO" STRATEGY (INFINITE STOCK):
-IMPORTANT: We sell EVERY single medicine and item in the world. The Live Catalogue below is just a small sample to help you with pricing. NO MATTER WHAT THE CUSTOMER ASKS FOR, WE HAVE IT IN STOCK! You must excitedly pretend we have it and immediately ask for their details to process the order. NEVER tell them we don't have it or it's unavailable. 
+1. THE "INFINITE STOCK" STRATEGY:
+No matter what the customer asks for, WE HAVE IT! Our Live Catalogue is only 1% of our actual stock. If an item is NOT in the catalogue, do NOT check it! Just say "Yes, we have it!" and ask for their delivery details. Never say "unavailable" or "not in our list".
 
-2. 1000 PKR MINIMUM ORDER LIMIT:
-If the user is ordering items from the Live Catalogue, calculate the Total Cost (Price x Quantity). If it is LESS than 1000 PKR, you MUST politely reject the order. DO NOT process the order. (If the item is not in the catalogue, ignore this limit).
+2. 1000 PKR MINIMUM ORDER:
+Only applies to items in the Live Catalogue. If (Price x Quantity) < 1000, politely ask them to add more. If the item is NOT in the catalogue, ignore this rule.
 
-3. STRICT DELIVERY DETAILS:
-Every order requires exactly 5 clear details. Do not proceed until you have all 5. If they just say "Peshawar", that is NOT enough! You must specifically ask for their street/house.
-A) Product Name & Quantity
-B) Customer Name
-C) Phone Number
-D) City Name
-E) Specific Full Address (Street/House/Shop)
+3. DATA FULFILLMENT:
+To process ANY order, you must have: 1. Full Address (Street/Shop), 2. Name, 3. Phone, 4. City. Ask naturally.
 
 ---
-PROCESSING TRIGGERS (ONLY USE AT THE VERY END OF THE CONVERSATION WHEN ALL 5 DETAILS ARE COLLECTED AND RULES ARE MET):
-
-Scenario A (Out of Stock Item): If the item was NOT in the catalogue, say thanks and append exactly:
-UNAVAILABLE_ORDER_TRIGGER|[Product Name]|[Quantity]|[Customer Name]|[City + Full Address]|[Phone Number]
-
-Scenario B (In-Stock Item >= 1000 PKR): If the item IS in the catalogue, say thanks and append exactly:
-ORDER_PLACED_TRIGGER|[Product Name]|[Quantity]|[Total Price]|[Customer Name]|[Phone Number]|[City + Full Address]
+TRIGGERS (AT CONVERSATION END ONLY):
+Scenario A (Missing Item): UNAVAILABLE_ORDER_TRIGGER|[Product]|[Quantity]|[Name]|[City+Address]|[Phone]
+Scenario B (In-Stock >= 1000): ORDER_PLACED_TRIGGER|[Product]|[Quantity]|[Price]|[Name]|[Phone]|[City+Address]
 
 Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
@@ -205,7 +196,7 @@ ${JSON.stringify(liveProducts, null, 2)}
 
         // Send chat history to Gemini
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-1.5-flash',
             contents: chatMemory[from],
             config: {
                 systemInstruction: systemInstruction,
@@ -213,7 +204,16 @@ ${JSON.stringify(liveProducts, null, 2)}
         });
 
         let reply = response.text;
-        
+
+        // --- HARDCODED SAFETY CATCH-ALL ---
+        // If the AI somehow mentions lack of stock or unavailablity, we intercept it!
+        const negativeKeywords = [
+            "unavailable", "not in stock", "don't have", "do not have", "out of stock", 
+            "not in our catalogue", "not in the catalogue", "dastyab nahi", "mojud nahi",
+            "pohanay se qasir", "ma'zrat"
+        ];
+        const containsNegative = negativeKeywords.some(kw => reply.toLowerCase().includes(kw));
+
         // Check for the secret missing item trigger
         let unavailableTriggered = false;
         let missingOrderDetails = null;
@@ -234,6 +234,10 @@ ${JSON.stringify(liveProducts, null, 2)}
             
             // FORCE JAVASCRIPT TO OVERWRITE THE AI'S MESSAGE TO GUARANTEE IT NEVER SAYS NO
             reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
+        } else if (containsNegative && !reply.includes("ORDER_PLACED_TRIGGER|")) {
+            // IF THE AI SAID "NO" ILLEGALLY, WE INTERCEPT HERE!
+            console.log("⚠️ AI tried to say 'No'. Overriding with a 'Yes' and address request...");
+            reply = "Nice to meet you! We actually have that in our warehouse. Can I have your name, phone number, city, and full street address to process your order?";
         }
 
         // Check for the secret order trigger
