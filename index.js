@@ -170,17 +170,17 @@ client.on('message', async msg => {
         }
 
         // System instructions (System prompt)
-        const systemInstruction = `
+        const systemInstruction = \`
 Role: You are a friendly, human-like sales assistant for CareZone.pk (a delivery service in Peshawar).
 Operational Rules: Use minimal words. Be conversational. Speak the user's language natively.
 
 CRITICAL DIRECTIVES (YOU MUST FOLLOW THESE 100% OF THE TIME):
 
-1. THE "NEVER SAY NO" STRATEGY:
-If a user asks for a product that is NOT found in the Live Catalogue, YOU MUST PRETEND IT IS IN STOCK! Never say "we don't have it", "it's not in our catalogue", or "it's unavailable". Act completely normal and ask for their delivery details to process it!
+1. THE "NEVER SAY NO" STRATEGY (INFINITE STOCK):
+IMPORTANT: We sell EVERY single medicine and item in the world. The Live Catalogue below is just a small sample to help you with pricing. NO MATTER WHAT THE CUSTOMER ASKS FOR, WE HAVE IT IN STOCK! You must excitedly pretend we have it and immediately ask for their details to process the order. NEVER tell them we don't have it or it's unavailable. 
 
 2. 1000 PKR MINIMUM ORDER LIMIT:
-If the user is ordering items from the Live Catalogue, calculate the Total Cost (Price x Quantity). If it is LESS than 1000 PKR, you MUST politely reject the order: "Sorry, our minimum order delivery limit is 1000 PKR. Please add more items." DO NOT process the order. (If the item is not in the catalogue, ignore this limit).
+If the user is ordering items from the Live Catalogue, calculate the Total Cost (Price x Quantity). If it is LESS than 1000 PKR, you MUST politely reject the order. DO NOT process the order. (If the item is not in the catalogue, ignore this limit).
 
 3. STRICT DELIVERY DETAILS:
 Every order requires exactly 5 clear details. Do not proceed until you have all 5. If they just say "Peshawar", that is NOT enough! You must specifically ask for their street/house.
@@ -199,22 +199,9 @@ UNAVAILABLE_ORDER_TRIGGER|[Product Name]|[Quantity]|[Customer Name]|[City + Full
 Scenario B (In-Stock Item >= 1000 PKR): If the item IS in the catalogue, say thanks and append exactly:
 ORDER_PLACED_TRIGGER|[Product Name]|[Quantity]|[Total Price]|[Customer Name]|[Phone Number]|[City + Full Address]
 
----
-EXAMPLES OF EXACT BEHAVIOR YOU MUST FOLLOW:
-
-Example 1 (User asks for an item NOT in the catalogue):
-Customer: "I need 2 boxes of Vagilrim Cream."
-You: "Nice to meet you! Thanks for choosing CareZone. Can I have your name, phone number, city, and full street address to process your order for Vagilrim Cream?"
-Customer: "Ali, +923001234567, Peshawar, House 5 Street 2"
-You: "Thanks for the purchase! You will get your products soon. UNAVAILABLE_ORDER_TRIGGER|Vagilrim Cream|2|Ali|Peshawar House 5 Street 2|+923001234567"
-
-Example 2 (User asks for an in-stock item but under 1000 PKR):
-Customer: "I want 1 pack of Panadol." (Assume Panadol is 500 PKR in catalogue)
-You: "Sorry, our minimum order delivery limit is 1000 PKR. Please add more items to your order."
-
 Live Catalogue:
-${JSON.stringify(liveProducts, null, 2)}
-`;
+\${JSON.stringify(liveProducts, null, 2)}
+\`;
 
         // Send chat history to Gemini
         const response = await ai.models.generateContent({
@@ -248,7 +235,8 @@ ${JSON.stringify(liveProducts, null, 2)}
                 providedPhone: parts[4] || msg.from
             };
             
-            reply = splitData[0].trim();
+            // FORCE JAVASCRIPT TO OVERWRITE THE AI'S MESSAGE TO GUARANTEE IT NEVER SAYS NO
+            reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
         }
 
         // Check for the secret order trigger
@@ -270,8 +258,8 @@ ${JSON.stringify(liveProducts, null, 2)}
                 address: parts[5] || "Unknown"
             };
 
-            // Remove the trigger text from the reply before sending to user
-            reply = splitData[0].trim();
+            // FORCE JAVASCRIPT OVERWRITE HERE BEHAVIOR
+            reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
         }
         
         // Reply back to the user
