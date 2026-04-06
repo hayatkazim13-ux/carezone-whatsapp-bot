@@ -32,6 +32,7 @@ setInterval(updateProductCache, 60 * 60 * 1000);
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
+        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -43,10 +44,9 @@ const client = new Client({
             '--disable-gpu'
         ] 
     },
-    // Fix for the WhatsApp Web update error (i.getLastMsgKeyForAction is not a function)
+    // Fix for the WhatsApp Web update error
     webVersionCache: {
-        type: 'remote',
-        remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/2.2412.54.html',
+        type: 'local'
     }
 });
 
