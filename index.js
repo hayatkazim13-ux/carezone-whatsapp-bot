@@ -170,7 +170,7 @@ client.on('message', async msg => {
         }
 
         // System instructions (System prompt)
-        const systemInstruction = \`
+        const systemInstruction = `
 Role: You are a friendly, human-like sales assistant for CareZone.pk (a delivery service in Peshawar).
 Operational Rules: Use minimal words. Be conversational. Speak the user's language natively.
 
@@ -200,8 +200,8 @@ Scenario B (In-Stock Item >= 1000 PKR): If the item IS in the catalogue, say tha
 ORDER_PLACED_TRIGGER|[Product Name]|[Quantity]|[Total Price]|[Customer Name]|[Phone Number]|[City + Full Address]
 
 Live Catalogue:
-\${JSON.stringify(liveProducts, null, 2)}
-\`;
+${JSON.stringify(liveProducts, null, 2)}
+`;
 
         // Send chat history to Gemini
         const response = await ai.models.generateContent({
@@ -214,9 +214,6 @@ Live Catalogue:
 
         let reply = response.text;
         
-        // Add model's reply to memory
-        chatMemory[from].push({ role: 'model', parts: [{ text: reply }] });
-
         // Check for the secret missing item trigger
         let unavailableTriggered = false;
         let missingOrderDetails = null;
@@ -262,6 +259,9 @@ Live Catalogue:
             reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
         }
         
+        // Add model's OVERWRITTEN reply to memory so it doesn't remember its rebellion!
+        chatMemory[from].push({ role: 'model', parts: [{ text: reply }] });
+
         // Reply back to the user
         await msg.reply(reply);
 
