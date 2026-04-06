@@ -43,4 +43,32 @@ A new row has also been securely logged to your Google Sheet!
     }
 }
 
-module.exports = { sendEmailAlert };
+async function sendErrorAlert(errorMessage) {
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_EMAIL_PASSWORD; // Must be a Gmail App Password
+
+    if (!email || !password) return;
+
+    try {
+        const transporter = nodemailer.createTransport({
+            service: 'gmail',
+            auth: {
+                user: email,
+                pass: password
+            }
+        });
+
+        const mailOptions = {
+            from: email,
+            to: email, // Admin sends email to themselves
+            subject: '🔴 ALERT: WhatsApp Bot Error / Offline',
+            text: `Carezone Bot Error Alert:\n\n${errorMessage}\n\nPlease check your Railway server logs.`
+        };
+
+        await transporter.sendMail(mailOptions);
+    } catch (e) {
+        console.error("❌ Failed to send Error Email notification:", e.message);
+    }
+}
+
+module.exports = { sendEmailAlert, sendErrorAlert };

@@ -5,7 +5,7 @@ require('dotenv').config();
 
 const { fetchProducts } = require('./shopifySync');
 const { logOrder, logCustomer } = require('./googleSheets');
-const { sendEmailAlert } = require('./emailNotifier');
+const { sendEmailAlert, sendErrorAlert } = require('./emailNotifier');
 
 if (!process.env.GEMINI_API_KEY) {
     console.error("Error: GEMINI_API_KEY is missing from the .env file.");
@@ -286,7 +286,25 @@ ORDER_PLACED_TRIGGER|[Product Name]|[Quantity]|[Total Price]|[Customer Name]|[Ph
              const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
              await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\n🚨 *Bot Error Alert!* 🚨\nThe chatbot encountered an error while processing a message from ${msg.from}.\n\nError details: ${error.message}\n\nPlease help the customer manually.`);
         }
+        await sendErrorAlert(`Bot threw an error while talking to ${msg.from}: \n${error.message}`);
     }
+});
+
+client.on('disconnected', async (reason) => {
+    console.error('Client was logged out or disconnected:', reason);
+    await sendErrorAlert(`WhatsApp Bot Disconnected / Logged Out!\nReason: ${reason}\nPlease restart and scan the QR code via Railway Logs.`);
+});
+
+// Catch global process crashes to alert admin
+process.on('uncaughtException', async (error) => {
+    console.error('Uncaught Exception:', error);
+    await sendErrorAlert(`CRITICAL SERVER CRASH (Uncaught Exception):\n${error.message}\n${error.stack}`);
+    setTimeout(() => process.exit(1), 2000); // 2 second delay to let email send
+});
+
+process.on('unhandledRejection', async (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+    await sendErrorAlert(`CRITICAL SERVER CRASH (Unhandled Rejection):\n${reason}`);
 });
 
 client.initialize();
