@@ -2,10 +2,23 @@ const { google } = require('googleapis');
 
 // Helper to authenticate
 async function getSheetsConfig() {
-    const auth = new google.auth.GoogleAuth({
-        keyFile: './credentials.json',
+    let authOptions = {
         scopes: ['https://www.googleapis.com/auth/spreadsheets']
-    });
+    };
+
+    // If running on Railway/Cloud, use the environment variable
+    if (process.env.GOOGLE_CREDENTIALS) {
+        try {
+            authOptions.credentials = JSON.parse(process.env.GOOGLE_CREDENTIALS);
+        } catch (e) {
+            console.error("Error parsing GOOGLE_CREDENTIALS JSON:", e.message);
+        }
+    } else {
+        // Fallback for local development
+        authOptions.keyFile = './credentials.json';
+    }
+
+    const auth = new google.auth.GoogleAuth(authOptions);
     const client = await auth.getClient();
     return google.sheets({ version: 'v4', auth: client });
 }
