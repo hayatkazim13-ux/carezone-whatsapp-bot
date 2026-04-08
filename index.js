@@ -13,6 +13,7 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
 const adminPhone = adminPhoneRaw.replace(/[^0-9]/g, '');
@@ -271,15 +272,17 @@ ${JSON.stringify(liveProducts, null, 2)}
 `;
 
         // Send chat history to Gemini
-        const response = await ai.models.generateContent({
+        const modelInstance = ai.getGenerativeModel({ 
             model: 'gemini-1.5-flash',
-            contents: chatMemory[from],
-            config: {
-                systemInstruction: systemInstruction,
-            }
+            systemInstruction: systemInstruction 
         });
 
-        let reply = response.text;
+        const result = await modelInstance.generateContent({
+            contents: chatMemory[from]
+        });
+
+        const response = result.response;
+        let reply = response.text();
         console.log(`[AI Response for ${from}]: "${reply.substring(0, 100)}..."`);
 
         // --- HARDCODED SAFETY CATCH-ALL ---
