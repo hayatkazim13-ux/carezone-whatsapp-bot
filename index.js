@@ -59,36 +59,48 @@ const ai = new GoogleGenerativeAI(cleanApiKey);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
 // --- MASTER DIAGNOSTIC: NETWORK & CONNECTIVITY ---
+const dns = require('dns').promises;
 async function runMasterDiagnostic() {
     console.log("[MASTER-CHECK] Starting Network Diagnostics...");
     try {
-        // 1. Check Server IP
+        // 1. Check DNS resolution for Google APIs
+        const domains = ['generativelanguage.googleapis.com', 'google.com', 'www.googleapis.com'];
+        for (const domain of domains) {
+            try {
+                const addresses = await dns.resolve4(domain);
+                console.log(`[MASTER-CHECK] DNS Lookup ${domain}: SUCCESS (${addresses[0]})`);
+            } catch (e) {
+                console.error(`[MASTER-CHECK] DNS Lookup ${domain}: FAILED (${e.code})`);
+            }
+        }
+        
+        // 2. Check Server IP
         const ipRes = await axios.get('https://api.ipify.org?format=json');
         console.log(`[MASTER-CHECK] SERVER PUBLIC IP: ${ipRes.data.ip}`);
     } catch (e) {
-        console.error("[MASTER-CHECK] Could not determine server IP.");
+        console.error("[MASTER-CHECK] Preliminary checks failed.");
     }
 
     try {
-        // 2. Ping Google
-        await axios.get('https://www.google.com', { timeout: 5000 });
+        // 3. Ping Google
+        await axios.get('https://www.google.com', { timeout: 10000 });
         console.log("[MASTER-CHECK] PING GOOGLE.COM: SUCCESS");
     } catch (e) {
         console.error("[MASTER-CHECK] PING GOOGLE.COM: FAILED (Timeout or Blocked)");
     }
 
-    // 3. Test Gemini on both v1 and v1beta
+    // 4. Test Gemini on both v1 and v1beta (Increased Timeout)
     const versions = ['v1', 'v1beta'];
     for (const v of versions) {
         try {
-            console.log(`[MASTER-CHECK] Testing Gemini ${v}...`);
+            console.log(`[MASTER-CHECK] Testing Gemini ${v} (Timeout 15s)...`);
             const safeKey = encodeURIComponent(cleanApiKey);
             const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
             const data = { contents: [{ parts: [{ text: "hi" }] }] };
-            const response = await axios.post(url, data, { timeout: 5000 });
+            const response = await axios.post(url, data, { timeout: 15000 });
             console.log(`[MASTER-CHECK] Gemini ${v} Test: SUCCESS!`);
         } catch (error) {
-            console.error(`[MASTER-CHECK] Gemini ${v} Test: FAILED (${error.response ? error.response.status : 'Timeout'})`);
+            console.error(`[MASTER-CHECK] Gemini ${v} Test: FAILED (${error.response ? error.response.status : (error.code || 'Timeout')})`);
             if (error.response && error.response.data) {
                 console.error(`[MASTER-CHECK] Response Payload: ${JSON.stringify(error.response.data)}`);
             }
