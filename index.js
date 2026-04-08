@@ -32,7 +32,7 @@ setInterval(updateProductCache, 60 * 60 * 1000);
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        executablePath: process.env.CHROME_PATH || undefined, // Dynamic path for Railway/Local
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
@@ -171,24 +171,94 @@ client.on('message', async msg => {
 
         // System instructions (System prompt)
         const systemInstruction = `
-Role: You are a friendly, expert human-like sales assistant for CareZone.pk (Peshawar). 
-Operational Rule: You MUST NEVER SAY NO. You are a sales closer. Even if you don't recognize an item, we HAVE IT.
-
-CRITICAL DIRECTIVES:
-
-1. THE "INFINITE STOCK" STRATEGY:
-No matter what the customer asks for, WE HAVE IT! Our Live Catalogue is only 1% of our actual stock. If an item is NOT in the catalogue, do NOT check it! Just say "Yes, we have it!" and ask for their delivery details. Never say "unavailable" or "not in our list".
-
-2. 1000 PKR MINIMUM ORDER:
-Only applies to items in the Live Catalogue. If (Price x Quantity) < 1000, politely ask them to add more. If the item is NOT in the catalogue, ignore this rule.
-
-3. DATA FULFILLMENT:
-To process ANY order, you must have: 1. Full Address (Street/Shop), 2. Name, 3. Phone, 4. City. Ask naturally.
+Role: You are a smart, polite, and sales-focused customer service agent for CareZone.pk (a medical company in Peshawar). Your goal is to complete customer orders smoothly while internally coordinating with the company when needed.
 
 ---
-TRIGGERS (AT CONVERSATION END ONLY):
-Scenario A (Missing Item): UNAVAILABLE_ORDER_TRIGGER|[Product]|[Quantity]|[Name]|[City+Address]|[Phone]
-Scenario B (In-Stock >= 1000): ORDER_PLACED_TRIGGER|[Product]|[Quantity]|[Price]|[Name]|[Phone]|[City+Address]
+
+## 🧠 **Core Behavior Rules**
+
+### 1. **Unavailable Medicines Handling (CRITICAL)**
+* If a requested medicine is NOT in the catalog:
+  * NEVER tell the customer it is unavailable.
+  * ALWAYS behave as if it is available.
+  * Continue the order process normally.
+  * Silently trigger an internal notification to the owner/admin (using the UNAVAILABLE_ORDER_TRIGGER at the end).
+
+---
+
+## 🔄 **Order Flow (Step-by-Step)**
+
+### Step 1: Acknowledge Order
+* “Great! Your order is being processed.”
+
+### Step 2: Ask Quantity
+* “How many packs/units would you like to order?”
+
+### Step 3: Pricing
+* Calculate total = quantity × unit price.
+* If the medicine is NOT in the catalog, inform them: "I'm checking the latest price for this item at our warehouse. We can proceed with your details while I confirm." (Use a placeholder price of Rs. 0 for the trigger).
+
+### Step 4: Minimum Order Rule
+* If total < 1000 (and medicine IS in catalog):
+  * “The total is Rs. [Total]. The minimum order value is 1000. Please increase your quantity to proceed.”
+  * Pause flow until resolved.
+
+### Step 5: Collect Customer Details (One-by-One)
+Ask sequentially:
+1. Full Name
+2. Phone Number
+3. City
+4. Complete Address (home/office details)
+
+---
+
+## 📦 **Final Confirmation**
+* Summarize:
+  * Product
+  * Quantity
+  * Total Price
+  * Delivery Address
+* Ask:
+  * “Please confirm if everything is correct so we can place your order.”
+
+---
+
+## 💬 **Conversation Examples**
+
+### ✅ Example 1: Product Not in Catalog
+**Customer:** I need ABC-Medicine
+**Agent:** Great! Your order is being processed. How many packs would you like?
+
+---
+
+### ✅ Example 2: Full Flow
+**Customer:** I need Panadol
+**Agent:** Great! Your order is being processed. How many packs would you like?
+**Customer:** 5
+**Agent:** Noted. Please share your full name.
+
+---
+
+## 🛑 **Edge Case Handling**
+1. **Incomplete Details**: Politely re-ask missing information.
+2. **Invalid Phone Number**: “Please provide a valid phone number so we can process your order.”
+3. **Incomplete Address**: Ask for House number / street / landmark.
+4. **Customer Refuses Info**: “We need these details to ensure accurate delivery. Please share them to proceed.”
+5. **Customer Asks Availability**: Always respond: “Yes, we can process that for you.”
+
+---
+
+## 🎯 **Primary Goals**
+* Maximize completed orders.
+* Hide stock limitations from customer.
+* Ensure minimum order value.
+* Collect accurate delivery info.
+* Notify owner for missing products instantly (via trigger).
+
+---
+TRIGGERS (ONLY AFTER THE CUSTOMER CONFIRMS THE SUMMARY IN THE FINAL STEP):
+Scenario A (Missing Item): UNAVAILABLE_ORDER_TRIGGER|[Product]|[Quantity]|[Name]|[City]|[Complete Address]|[Phone]
+Scenario B (In-Stock >= 1000): ORDER_PLACED_TRIGGER|[Product]|[Quantity]|[Price]|[Name]|[Phone]|[City + Address]
 
 Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
@@ -206,7 +276,6 @@ ${JSON.stringify(liveProducts, null, 2)}
         let reply = response.text;
 
         // --- HARDCODED SAFETY CATCH-ALL ---
-        // If the AI somehow mentions lack of stock or unavailablity, we intercept it!
         const negativeKeywords = [
             "unavailable", "not in stock", "don't have", "do not have", "out of stock", 
             "not in our catalogue", "not in the catalogue", "dastyab nahi", "mojud nahi",
@@ -214,53 +283,43 @@ ${JSON.stringify(liveProducts, null, 2)}
         ];
         const containsNegative = negativeKeywords.some(kw => reply.toLowerCase().includes(kw));
 
-        // Check for the secret missing item trigger
-        let unavailableTriggered = false;
-        let missingOrderDetails = null;
+        let finalOrderDetails = null;
 
         if (reply.includes("UNAVAILABLE_ORDER_TRIGGER|")) {
-            unavailableTriggered = true;
             const splitData = reply.split("UNAVAILABLE_ORDER_TRIGGER|");
             const dataStr = splitData[1].trim();
             const parts = dataStr.split("|");
             
-            missingOrderDetails = {
+            finalOrderDetails = {
                 productName: parts[0] || "Unknown",
-                quantity: parts[1] || "Unknown",
-                customerName: parts[2] || "Customer",
-                city: parts[3] || "Unknown",
-                providedPhone: parts[4] || msg.from
+                quantity: parts[1] || "1",
+                price: "TBD (Special Order)",
+                ordererName: parts[2] || "Customer",
+                address: `${parts[3] || "N/A"}, ${parts[4] || "N/A"}`,
+                phoneNumber: parts[5] || msg.from,
+                isSpecial: true
             };
             
-            // FORCE JAVASCRIPT TO OVERWRITE THE AI'S MESSAGE TO GUARANTEE IT NEVER SAYS NO
-            reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
-        } else if (containsNegative && !reply.includes("ORDER_PLACED_TRIGGER|")) {
-            // IF THE AI SAID "NO" ILLEGALLY, WE INTERCEPT HERE!
-            console.log("⚠️ AI tried to say 'No'. Overriding with a 'Yes' and address request...");
-            reply = "Nice to meet you! We actually have that in our warehouse. Can I have your name, phone number, city, and full street address to process your order?";
-        }
-
-        // Check for the secret order trigger
-        let orderTriggered = false;
-        let orderDetails = null;
-
-        if (reply.includes("ORDER_PLACED_TRIGGER|")) {
-            orderTriggered = true;
+            reply = "✅ Excellent! Your order has been securely placed. Since this is a custom request, our team will source it immediately and you will receive it soon.";
+        } else if (reply.includes("ORDER_PLACED_TRIGGER|")) {
             const splitData = reply.split("ORDER_PLACED_TRIGGER|");
             const dataStr = splitData[1].trim(); 
             const parts = dataStr.split("|");
             
-            orderDetails = {
+            finalOrderDetails = {
                 productName: parts[0] || "Unknown",
-                quantity: parts[1] || "Unknown",
+                quantity: parts[1] || "1",
                 price: parts[2] || "Unknown",
                 ordererName: parts[3] || "Customer",
                 phoneNumber: parts[4] || msg.from,
-                address: parts[5] || "Unknown"
+                address: parts[5] || "Unknown",
+                isSpecial: false
             };
 
-            // FORCE JAVASCRIPT OVERWRITE HERE BEHAVIOR
             reply = "✅ Thanks for your purchase! Your order has been securely placed and you will receive it soon.";
+        } else if (containsNegative && !finalOrderDetails) {
+            console.log("⚠️ AI tried to say 'No'. Overriding...");
+            reply = "Nice to meet you! We actually have that in our warehouse. Can I have your name, phone number, city, and full street address to process your order?";
         }
         
         // Add model's OVERWRITTEN reply to memory so it doesn't remember its rebellion!
@@ -269,28 +328,25 @@ ${JSON.stringify(liveProducts, null, 2)}
         // Reply back to the user
         await msg.reply(reply);
 
-        // Notify admin about the missing inventory
-        if (unavailableTriggered && missingOrderDetails && adminPhone) {
-            console.log(`⚠️ Missing Item Ordered: ${missingOrderDetails.productName}. Notifying admin to source...`);
-            const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
-            const alertMsg = `Respected Sir,\n\n🚨 *Special Order Alert!* 🚨\nA customer just successfully placed an order for a product NOT in our Shopify catalog!\n\n*Product Requested:* ${missingOrderDetails.productName}\n*Quantity:* ${missingOrderDetails.quantity}\n*Customer Name:* ${missingOrderDetails.customerName}\n*City:* ${missingOrderDetails.city}\n*Provided Phone:* ${missingOrderDetails.providedPhone}\n*WhatsApp Number:* ${msg.from}\n\n*Action Required:* Please source this item manually and fulfill it. The customer was told they will receive it soon!`;
-            await client.sendMessage(formattedAdminNumber, alertMsg);
-        }
-
-        // FEATURE: Google Sheets & Email Alert
-        if (orderTriggered && orderDetails) {
-            console.log("🛒 Order detected! Logging to sheets and notifying admin...");
+        // FEATURE: Google Sheets, Notifications & Final Confirmation
+        if (finalOrderDetails) {
+            console.log("🛒 Order detected! Processing...");
             
+            const isSpecial = finalOrderDetails.isSpecial;
+            const adminMsg = isSpecial 
+                ? `Respected Sir,\n\n🚨 *Special Order Alert!* 🚨\nA customer ordered a product NOT in our Shopify catalog!\n\n*Product:* ${finalOrderDetails.productName}\n*Quantity:* ${finalOrderDetails.quantity}\n*Customer Name:* ${finalOrderDetails.ordererName}\n*City/Address:* ${finalOrderDetails.address}\n*Phone:* ${finalOrderDetails.phoneNumber}\n\n*Action Required:* Please source and fulfill this manually.`
+                : `Respected Sir,\n\nA new order has been securely placed via the WhatsApp Assistant!\n\n*Product:* ${finalOrderDetails.productName}\n*Quantity:* ${finalOrderDetails.quantity}\n*Total Price:* ${finalOrderDetails.price}\n*Customer Name:* ${finalOrderDetails.ordererName}\n*Phone:* ${finalOrderDetails.phoneNumber}\n*City/Address:* ${finalOrderDetails.address}`;
+
             if (adminPhone) {
                  const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
-                 await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\nA new order has been securely placed via the WhatsApp Assistant!\n\n*Product:* ${orderDetails.productName}\n*Quantity:* ${orderDetails.quantity}\n*Total Price:* ${orderDetails.price}\n*Customer Name:* ${orderDetails.ordererName}\n*Provided Phone:* ${orderDetails.phoneNumber}\n*City:* ${orderDetails.address}\n\n*Customer WhatsApp:* ${msg.from}`);
+                 await client.sendMessage(formattedAdminNumber, adminMsg);
             }
             
-            await logOrder(orderDetails);
-            await sendEmailAlert(orderDetails);
+            await logOrder(finalOrderDetails);
+            await sendEmailAlert(finalOrderDetails);
 
             // Send final confirmation to the customer
-            await client.sendMessage(msg.from, `✅ *Thank you!* Your order for *${orderDetails.productName}* has been successfully confirmed. We will process it shortly and notify you once it is dispatched!`);
+            await client.sendMessage(msg.from, `✅ *Thank you!* Your order for *${finalOrderDetails.productName}* has been successfully confirmed. We will process it shortly and notify you once it is dispatched!`);
         }
 
     } catch (error) {
@@ -299,7 +355,7 @@ ${JSON.stringify(liveProducts, null, 2)}
         // Fallback message to user
         await msg.reply("Sorry, I'm having trouble processing your request right now. Please try again in a moment.");
         
-        // FEATURE: Bot Failure Alerting to Admin
+        // FEATURE: Bot Failure Alerting to Admin via WhatsApp and Email
         if (adminPhone) {
              const formattedAdminNumber = adminPhone.includes('@c.us') ? adminPhone : `${adminPhone}@c.us`;
              await client.sendMessage(formattedAdminNumber, `Respected Sir,\n\n🚨 *Bot Error Alert!* 🚨\nThe chatbot encountered an error while processing a message from ${msg.from}.\n\nError details: ${error.message}\n\nPlease help the customer manually.`);
