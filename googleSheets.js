@@ -9,16 +9,20 @@ async function getSheetsConfig() {
     // If running on Railway/Cloud, use the environment variable
     if (process.env.GOOGLE_CREDENTIALS) {
         try {
-            const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
-            // Fix for the most common cause of 'Invalid JWT Signature':
-            // Environment variables often mangle newlines or add extra quotes.
+            // Extreme cleanup for Railway environments where quotes might be added to the secret
+            let rawCreds = process.env.GOOGLE_CREDENTIALS || "";
+            rawCreds = rawCreds.trim().replace(/^['"]|['"]$/g, '');
+            
+            const creds = JSON.parse(rawCreds);
+            
             if (creds.private_key) {
                 creds.private_key = creds.private_key
-                    .replace(/\\n/g, '\n')     // Handle escaped newlines
-                    .replace(/^"|"$/g, '')      // Handle leading/trailing quotes
+                    .replace(/\\n/g, '\n')
+                    .replace(/^['"]|['"]$/g, '')
                     .trim();
             }
             authOptions.credentials = creds;
+            console.log("[DEBUG] Google Credentials parsed and cleaned successfully.");
         } catch (e) {
             console.error("Error parsing GOOGLE_CREDENTIALS JSON:", e.message);
         }

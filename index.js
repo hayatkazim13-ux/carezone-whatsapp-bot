@@ -12,6 +12,9 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
+// Clean the API Key (Remove quotes if added by the environment)
+const cleanApiKey = process.env.GEMINI_API_KEY.trim().replace(/^['"]|['"]$/g, '');
+
 // --- EXTREMELY DEFENSIVE GEMINI INITIALIZATION ---
 let GoogleGenerativeAI;
 try {
@@ -52,7 +55,7 @@ if (key.length < 5) {
     console.log(`[DEBUG] Gemini API Key Check: PASS (Starts with: ${key.substring(0, 4)}...)`);
 }
 
-const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const ai = new GoogleGenerativeAI(cleanApiKey);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
