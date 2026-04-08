@@ -1,0 +1,13 @@
+[phases.setup]
+nixPkgs = ["...", "chromium", "bash"]
+
+[phases.build]
+cmds = ["npm install"]
+
+[start]
+cmd = "node index.js"
+
+[variables]
+PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
+PUPPETEER_EXECUTABLE_PATH = "/usr/bin/google-chrome-stable"
+CHROME_PATH = "/usr/bin/google-chrome-stable"
