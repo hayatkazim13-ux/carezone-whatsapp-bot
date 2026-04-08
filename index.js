@@ -106,6 +106,7 @@ async function runMasterDiagnostic() {
     const versions = ['v1', 'v1beta'];
     let workingModel = null;
 
+    console.log(`[MASTER-CHECK] API Key Verify: length=${cleanApiKey.length}, starts with: ${cleanApiKey.substring(0, 4)}...`);
     console.log("[MASTER-CHECK] Testing Model Compatibility...");
     for (const m of modelsToTest) {
         for (const v of versions) {
