@@ -13,21 +13,24 @@ if (!process.env.GEMINI_API_KEY) {
 }
 
 // --- EXTREMELY DEFENSIVE GEMINI INITIALIZATION ---
-let GoogleGenAI;
+let GoogleGenerativeAI;
 try {
     const sdk = require('@google/generative-ai');
     console.log("[DEBUG] Gemini SDK package type:", typeof sdk);
     
-    // Triple-check for the constructor in different possible export paths
-    if (typeof sdk.GoogleGenAI === 'function') {
-        GoogleGenAI = sdk.GoogleGenAI;
+    // Triple-check for the constructor (Official name is GoogleGenerativeAI)
+    if (typeof sdk.GoogleGenerativeAI === 'function') {
+        GoogleGenerativeAI = sdk.GoogleGenerativeAI;
+        console.log("[DEBUG] Found GoogleGenerativeAI in named export.");
+    } else if (typeof sdk.GoogleGenAI === 'function') {
+        GoogleGenerativeAI = sdk.GoogleGenAI;
         console.log("[DEBUG] Found GoogleGenAI in named export.");
     } else if (typeof sdk === 'function') {
-        GoogleGenAI = sdk;
-        console.log("[DEBUG] Found GoogleGenAI in direct export.");
-    } else if (sdk.default && typeof sdk.default.GoogleGenAI === 'function') {
-        GoogleGenAI = sdk.default.GoogleGenAI;
-        console.log("[DEBUG] Found GoogleGenAI in default export.");
+        GoogleGenerativeAI = sdk;
+        console.log("[DEBUG] Found SDK as a direct constructor.");
+    } else if (sdk.default && typeof sdk.default.GoogleGenerativeAI === 'function') {
+        GoogleGenerativeAI = sdk.default.GoogleGenerativeAI;
+        console.log("[DEBUG] Found GoogleGenerativeAI in default export.");
     } else {
         console.error("[DEBUG] Gemini SDK structure:", Object.keys(sdk));
     }
@@ -35,13 +38,13 @@ try {
     console.error("Failed to load @google/generative-ai SDK:", e.message);
 }
 
-if (!GoogleGenAI) {
-    console.error("CRITICAL ERROR: GoogleGenAI constructor not found despite universal Triple-Check.");
+if (!GoogleGenerativeAI) {
+    console.error("CRITICAL ERROR: GoogleGenerativeAI constructor not found despite universal Triple-Check.");
     process.exit(1);
 }
 // --- END INITIALIZATION ---
 
-const ai = new GoogleGenAI(process.env.GEMINI_API_KEY);
+const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
