@@ -7,6 +7,7 @@ async function getSheetsConfig() {
     };
 
     // If running on Railway/Cloud, use the environment variable
+    if (process.env.GOOGLE_CREDENTIALS) {
         try {
             // Extreme cleanup for Railway environments where quotes might be added to the secret
             let rawCreds = process.env.GOOGLE_CREDENTIALS || "";
