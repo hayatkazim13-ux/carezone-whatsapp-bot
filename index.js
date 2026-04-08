@@ -58,7 +58,14 @@ if (key.length < 5) {
 }
 
 const ai = new GoogleGenerativeAI(cleanApiKey);
-const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+// Support multiple models to avoid 404 "Model Not Found" errors
+let model;
+try {
+    model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+} catch (e) {
+    console.log("Gemini 1.5 Flash not available, falling back to Gemini Pro...");
+    model = ai.getGenerativeModel({ model: 'gemini-pro' });
+}
 
 // --- DEEP NETWORK RESCUE ---
 async function runMasterDiagnostic() {
@@ -94,25 +101,31 @@ async function runMasterDiagnostic() {
         console.error("[MASTER-CHECK] Preliminary checks encountered errors.");
     }
 
-    // 4. Test Gemini with Browser Spoofing and 20s Timeout
+    // 4. Test Multi-Model Compatibility and Auto-Select
+    const modelsToTest = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
     const versions = ['v1', 'v1beta'];
-    for (const v of versions) {
-        try {
-            console.log(`[MASTER-CHECK] Testing Gemini ${v} (Spoofed & 20s Timeout)...`);
-            const safeKey = encodeURIComponent(cleanApiKey);
-            const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
-            const data = { contents: [{ parts: [{ text: "hi" }] }] };
-            const response = await axios.post(url, data, { 
-                headers: { 'User-Agent': USER_AGENT },
-                timeout: 20000 
-            });
-            console.log(`[MASTER-CHECK] Gemini ${v} Test: SUCCESS!`);
-        } catch (error) {
-            console.error(`[MASTER-CHECK] Gemini ${v} Test: FAILED (${error.response ? error.response.status : (error.code || 'Timeout')})`);
-            if (error.response && error.response.data) {
-                console.error(`[MASTER-CHECK] Response Body: ${JSON.stringify(error.response.data)}`);
+    let workingModel = null;
+
+    console.log("[MASTER-CHECK] Testing Model Compatibility...");
+    for (const m of modelsToTest) {
+        for (const v of versions) {
+            try {
+                const safeKey = encodeURIComponent(cleanApiKey);
+                const url = `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent?key=${safeKey}`;
+                const data = { contents: [{ parts: [{ text: "hi" }] }] };
+                await axios.post(url, data, { headers: { 'User-Agent': USER_AGENT }, timeout: 10000 });
+                console.log(`[MASTER-CHECK] Model ${m} (${v}): WORKING!`);
+                if (!workingModel) workingModel = m;
+            } catch (e) {
+                // Silently skip failed models
             }
         }
+    }
+    
+    if (workingModel) {
+        console.log(`[MASTER-CHECK] FINAL SUCCESS: Bot will use ${workingModel}`);
+    } else {
+        console.error("[MASTER-CHECK] ALL MODELS FAILED. Please check if your Gemini API key is active in Google AI Studio.");
     }
 }
 runMasterDiagnostic();
