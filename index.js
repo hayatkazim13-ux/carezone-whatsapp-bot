@@ -12,11 +12,12 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// Initialize Gemini correctly
+// Initialize Gemini with Universal Import Helper
 let GoogleGenAI;
 try {
-    const aiSDK = require('@google/generative-ai');
-    GoogleGenAI = aiSDK.GoogleGenAI;
+    const sdk = require('@google/generative-ai');
+    // Handle both named exports (standard) and default exports (some environments)
+    GoogleGenAI = sdk.GoogleGenAI || (sdk.default && sdk.default.GoogleGenAI) || sdk;
 } catch (e) {
     console.error("Failed to load @google/generative-ai SDK:", e.message);
 }
