@@ -12,20 +12,34 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// Initialize Gemini with Universal Import Helper
+// --- EXTREMELY DEFENSIVE GEMINI INITIALIZATION ---
 let GoogleGenAI;
 try {
     const sdk = require('@google/generative-ai');
-    // Handle both named exports (standard) and default exports (some environments)
-    GoogleGenAI = sdk.GoogleGenAI || (sdk.default && sdk.default.GoogleGenAI) || sdk;
+    console.log("[DEBUG] Gemini SDK package type:", typeof sdk);
+    
+    // Triple-check for the constructor in different possible export paths
+    if (typeof sdk.GoogleGenAI === 'function') {
+        GoogleGenAI = sdk.GoogleGenAI;
+        console.log("[DEBUG] Found GoogleGenAI in named export.");
+    } else if (typeof sdk === 'function') {
+        GoogleGenAI = sdk;
+        console.log("[DEBUG] Found GoogleGenAI in direct export.");
+    } else if (sdk.default && typeof sdk.default.GoogleGenAI === 'function') {
+        GoogleGenAI = sdk.default.GoogleGenAI;
+        console.log("[DEBUG] Found GoogleGenAI in default export.");
+    } else {
+        console.error("[DEBUG] Gemini SDK structure:", Object.keys(sdk));
+    }
 } catch (e) {
     console.error("Failed to load @google/generative-ai SDK:", e.message);
 }
 
 if (!GoogleGenAI) {
-    console.error("Error: GoogleGenAI constructor is missing. Check your @google/generative-ai version.");
+    console.error("CRITICAL ERROR: GoogleGenAI constructor not found despite universal Triple-Check.");
     process.exit(1);
 }
+// --- END INITIALIZATION ---
 
 const ai = new GoogleGenAI(process.env.GEMINI_API_KEY);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
