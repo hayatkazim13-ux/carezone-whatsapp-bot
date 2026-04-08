@@ -12,7 +12,21 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+// Initialize Gemini correctly
+let GoogleGenAI;
+try {
+    const aiSDK = require('@google/generative-ai');
+    GoogleGenAI = aiSDK.GoogleGenAI;
+} catch (e) {
+    console.error("Failed to load @google/generative-ai SDK:", e.message);
+}
+
+if (!GoogleGenAI) {
+    console.error("Error: GoogleGenAI constructor is missing. Check your @google/generative-ai version.");
+    process.exit(1);
+}
+
+const ai = new GoogleGenAI(process.env.GEMINI_API_KEY);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
