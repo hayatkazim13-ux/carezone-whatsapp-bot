@@ -33,7 +33,7 @@ setInterval(updateProductCache, 60 * 60 * 1000);
 const client = new Client({
     authStrategy: new LocalAuth(),
     puppeteer: { 
-        executablePath: process.env.CHROME_PATH || undefined, // Dynamic path for Railway/Local
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || process.env.CHROME_PATH || undefined, // Dynamic path for Railway/Local
         args: [
             '--no-sandbox', 
             '--disable-setuid-sandbox',
