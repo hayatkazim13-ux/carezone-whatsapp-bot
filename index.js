@@ -44,6 +44,14 @@ if (!GoogleGenerativeAI) {
 }
 // --- END INITIALIZATION ---
 
+// Safety check for the API key to help user debug
+const key = process.env.GEMINI_API_KEY || "";
+if (key.length < 5) {
+    console.error("CRITICAL: GEMINI_API_KEY is missing or too short. Check your Railway variables.");
+} else {
+    console.log(`[DEBUG] Gemini API Key Check: PASS (Starts with: ${key.substring(0, 4)}...)`);
+}
+
 const ai = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)

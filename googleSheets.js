@@ -11,9 +11,12 @@ async function getSheetsConfig() {
         try {
             const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
             // Fix for the most common cause of 'Invalid JWT Signature':
-            // Environment variables often escape newlines. We must put them back.
+            // Environment variables often mangle newlines or add extra quotes.
             if (creds.private_key) {
-                creds.private_key = creds.private_key.replace(/\\n/g, '\n');
+                creds.private_key = creds.private_key
+                    .replace(/\\n/g, '\n')     // Handle escaped newlines
+                    .replace(/^"|"$/g, '')      // Handle leading/trailing quotes
+                    .trim();
             }
             authOptions.credentials = creds;
         } catch (e) {
