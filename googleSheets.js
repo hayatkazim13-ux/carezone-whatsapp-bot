@@ -7,18 +7,20 @@ async function getSheetsConfig() {
     };
 
     // If running on Railway/Cloud, use the environment variable
-    if (process.env.GOOGLE_CREDENTIALS) {
         try {
             // Extreme cleanup for Railway environments where quotes might be added to the secret
             let rawCreds = process.env.GOOGLE_CREDENTIALS || "";
             rawCreds = rawCreds.trim().replace(/^['"]|['"]$/g, '');
             
             const creds = JSON.parse(rawCreds);
+            const email = creds.client_email || "MISSING";
+            console.log(`[DEBUG] Using Google Service Account: ${email}`);
             
             if (creds.private_key) {
                 creds.private_key = creds.private_key
                     .replace(/\\n/g, '\n')
                     .replace(/^['"]|['"]$/g, '')
+                    .replace(/\r/g, '') // Remove carriage returns
                     .trim();
             }
             authOptions.credentials = creds;

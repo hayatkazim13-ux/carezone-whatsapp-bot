@@ -82,7 +82,8 @@ async function runMasterDiagnostic() {
     for (const v of versions) {
         try {
             console.log(`[MASTER-CHECK] Testing Gemini ${v}...`);
-            const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+            const safeKey = encodeURIComponent(cleanApiKey);
+            const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
             const data = { contents: [{ parts: [{ text: "hi" }] }] };
             const response = await axios.post(url, data, { timeout: 5000 });
             console.log(`[MASTER-CHECK] Gemini ${v} Test: SUCCESS!`);
