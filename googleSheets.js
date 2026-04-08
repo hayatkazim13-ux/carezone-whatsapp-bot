@@ -24,16 +24,27 @@ async function getSheetsConfig() {
             authOptions.credentials = creds;
             console.log("[DEBUG] Google Credentials parsed and cleaned successfully.");
         } catch (e) {
-            console.error("Error parsing GOOGLE_CREDENTIALS JSON:", e.message);
+            console.error("[DIAGNOSTIC] Error parsing GOOGLE_CREDENTIALS JSON:", e.message);
         }
     } else {
+        console.warn("[DIAGNOSTIC] GOOGLE_CREDENTIALS environment variable is MISSING.");
         // Fallback for local development
         authOptions.keyFile = './credentials.json';
     }
 
     const auth = new google.auth.GoogleAuth(authOptions);
-    const client = await auth.getClient();
-    return google.sheets({ version: 'v4', auth: client });
+    
+    try {
+        const client = await auth.getClient();
+        return google.sheets({ version: 'v4', auth: client });
+    } catch (error) {
+        console.error("[DIAGNOSTIC] Google Sheets Auth FAILED");
+        console.error(`[DIAGNOSTIC] Error Message: ${error.message}`);
+        if (error.response && error.response.data) {
+            console.error(`[DIAGNOSTIC] Raw Error Data: ${JSON.stringify(error.response.data)}`);
+        }
+        throw error;
+    }
 }
 
 async function logCustomer(phoneNumber, name) {

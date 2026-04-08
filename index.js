@@ -57,6 +57,28 @@ if (key.length < 5) {
 
 const ai = new GoogleGenerativeAI(cleanApiKey);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+// --- DIAGNOSTIC: TEST API CONNECTION DIRECTLY ---
+const axios = require('axios');
+async function testGeminiConnection() {
+    console.log("[DIAGNOSTIC] Testing Gemini API connection...");
+    try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+        const data = { contents: [{ parts: [{ text: "hi" }] }] };
+        const response = await axios.post(url, data);
+        console.log("[DIAGNOSTIC] Gemini API Test: SUCCESS! API key is active.");
+    } catch (error) {
+        console.error("[DIAGNOSTIC] Gemini API Test: FAILED");
+        if (error.response) {
+            console.error(`[DIAGNOSTIC] Error Code: ${error.response.status}`);
+            console.error(`[DIAGNOSTIC] Error Message: ${JSON.stringify(error.response.data)}`);
+        } else {
+            console.error(`[DIAGNOSTIC] Error: ${error.message}`);
+        }
+    }
+}
+testGeminiConnection();
+// --- END DIAGNOSTIC ---
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
 const adminPhone = adminPhoneRaw.replace(/[^0-9]/g, '');
