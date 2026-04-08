@@ -1,5 +1,7 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
+const axios = require('axios');
+const dns = require('dns').promises;
 require('@google/generative-ai');
 require('dotenv').config();
 
@@ -58,12 +60,16 @@ if (key.length < 5) {
 const ai = new GoogleGenerativeAI(cleanApiKey);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-// --- MASTER DIAGNOSTIC: NETWORK & CONNECTIVITY ---
-const dns = require('dns').promises;
+// --- DEEP NETWORK RESCUE ---
 async function runMasterDiagnostic() {
-    console.log("[MASTER-CHECK] Starting Network Diagnostics...");
+    console.log("[MASTER-CHECK] Starting Deep Network Diagnostics...");
+    const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    
     try {
-        // 1. Check DNS resolution for Google APIs
+        // 1. Server Time Verification
+        console.log(`[MASTER-CHECK] SERVER TIME: ${new Date().toISOString()}`);
+        
+        // 2. DNS resolution for Google APIs
         const domains = ['generativelanguage.googleapis.com', 'google.com', 'www.googleapis.com'];
         for (const domain of domains) {
             try {
@@ -74,41 +80,43 @@ async function runMasterDiagnostic() {
             }
         }
         
-        // 2. Check Server IP
-        const ipRes = await axios.get('https://api.ipify.org?format=json');
-        console.log(`[MASTER-CHECK] SERVER PUBLIC IP: ${ipRes.data.ip}`);
+        // 3. Fallback IP Checkers (With Spoofed User-Agent)
+        const ipCheckers = ['https://api.ipify.org?format=json', 'https://ifconfig.me/all.json'];
+        for (const url of ipCheckers) {
+            try {
+                const ipRes = await axios.get(url, { headers: { 'User-Agent': USER_AGENT }, timeout: 5000 });
+                console.log(`[MASTER-CHECK] IP CHECK (${url}): SUCCESS`);
+            } catch (e) {
+                console.error(`[MASTER-CHECK] IP CHECK (${url}): FAILED`);
+            }
+        }
     } catch (e) {
-        console.error("[MASTER-CHECK] Preliminary checks failed.");
+        console.error("[MASTER-CHECK] Preliminary checks encountered errors.");
     }
 
-    try {
-        // 3. Ping Google
-        await axios.get('https://www.google.com', { timeout: 10000 });
-        console.log("[MASTER-CHECK] PING GOOGLE.COM: SUCCESS");
-    } catch (e) {
-        console.error("[MASTER-CHECK] PING GOOGLE.COM: FAILED (Timeout or Blocked)");
-    }
-
-    // 4. Test Gemini on both v1 and v1beta (Increased Timeout)
+    // 4. Test Gemini with Browser Spoofing and 20s Timeout
     const versions = ['v1', 'v1beta'];
     for (const v of versions) {
         try {
-            console.log(`[MASTER-CHECK] Testing Gemini ${v} (Timeout 15s)...`);
+            console.log(`[MASTER-CHECK] Testing Gemini ${v} (Spoofed & 20s Timeout)...`);
             const safeKey = encodeURIComponent(cleanApiKey);
             const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${safeKey}`;
             const data = { contents: [{ parts: [{ text: "hi" }] }] };
-            const response = await axios.post(url, data, { timeout: 15000 });
+            const response = await axios.post(url, data, { 
+                headers: { 'User-Agent': USER_AGENT },
+                timeout: 20000 
+            });
             console.log(`[MASTER-CHECK] Gemini ${v} Test: SUCCESS!`);
         } catch (error) {
             console.error(`[MASTER-CHECK] Gemini ${v} Test: FAILED (${error.response ? error.response.status : (error.code || 'Timeout')})`);
             if (error.response && error.response.data) {
-                console.error(`[MASTER-CHECK] Response Payload: ${JSON.stringify(error.response.data)}`);
+                console.error(`[MASTER-CHECK] Response Body: ${JSON.stringify(error.response.data)}`);
             }
         }
     }
 }
 runMasterDiagnostic();
-// --- END MASTER DIAGNOSTIC ---
+// --- END DEEP NETWORK RESCUE ---
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
 const adminPhone = adminPhoneRaw.replace(/[^0-9]/g, '');
