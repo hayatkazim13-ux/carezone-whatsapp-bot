@@ -58,27 +58,44 @@ if (key.length < 5) {
 const ai = new GoogleGenerativeAI(cleanApiKey);
 const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
 
-// --- DIAGNOSTIC: TEST API CONNECTION DIRECTLY ---
-const axios = require('axios');
-async function testGeminiConnection() {
-    console.log("[DIAGNOSTIC] Testing Gemini API connection...");
+// --- MASTER DIAGNOSTIC: NETWORK & CONNECTIVITY ---
+async function runMasterDiagnostic() {
+    console.log("[MASTER-CHECK] Starting Network Diagnostics...");
     try {
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
-        const data = { contents: [{ parts: [{ text: "hi" }] }] };
-        const response = await axios.post(url, data);
-        console.log("[DIAGNOSTIC] Gemini API Test: SUCCESS! API key is active.");
-    } catch (error) {
-        console.error("[DIAGNOSTIC] Gemini API Test: FAILED");
-        if (error.response) {
-            console.error(`[DIAGNOSTIC] Error Code: ${error.response.status}`);
-            console.error(`[DIAGNOSTIC] Error Message: ${JSON.stringify(error.response.data)}`);
-        } else {
-            console.error(`[DIAGNOSTIC] Error: ${error.message}`);
+        // 1. Check Server IP
+        const ipRes = await axios.get('https://api.ipify.org?format=json');
+        console.log(`[MASTER-CHECK] SERVER PUBLIC IP: ${ipRes.data.ip}`);
+    } catch (e) {
+        console.error("[MASTER-CHECK] Could not determine server IP.");
+    }
+
+    try {
+        // 2. Ping Google
+        await axios.get('https://www.google.com', { timeout: 5000 });
+        console.log("[MASTER-CHECK] PING GOOGLE.COM: SUCCESS");
+    } catch (e) {
+        console.error("[MASTER-CHECK] PING GOOGLE.COM: FAILED (Timeout or Blocked)");
+    }
+
+    // 3. Test Gemini on both v1 and v1beta
+    const versions = ['v1', 'v1beta'];
+    for (const v of versions) {
+        try {
+            console.log(`[MASTER-CHECK] Testing Gemini ${v}...`);
+            const url = `https://generativelanguage.googleapis.com/${v}/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+            const data = { contents: [{ parts: [{ text: "hi" }] }] };
+            const response = await axios.post(url, data, { timeout: 5000 });
+            console.log(`[MASTER-CHECK] Gemini ${v} Test: SUCCESS!`);
+        } catch (error) {
+            console.error(`[MASTER-CHECK] Gemini ${v} Test: FAILED (${error.response ? error.response.status : 'Timeout'})`);
+            if (error.response && error.response.data) {
+                console.error(`[MASTER-CHECK] Response Payload: ${JSON.stringify(error.response.data)}`);
+            }
         }
     }
 }
-testGeminiConnection();
-// --- END DIAGNOSTIC ---
+runMasterDiagnostic();
+// --- END MASTER DIAGNOSTIC ---
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
 const adminPhone = adminPhoneRaw.replace(/[^0-9]/g, '');
