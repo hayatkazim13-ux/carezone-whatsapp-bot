@@ -1,16 +1,19 @@
 const { google } = require('googleapis');
 
-// Helper to decode Base64 secrets (fixes Railway's secret mangling)
+// Robust Helper to decode Base64 secrets
 function decodeSecret(val) {
     if (!val) return "";
-    val = val.trim().replace(/^['"]|['"]$/g, '');
-    // If it looks like base64 (no spaces, long, and only b64 chars)
-    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(val) && val.length > 30) {
+    // Clear quotes and INTERNAL whitespace/newlines
+    let cleaned = val.trim().replace(/^['"]|['"]$/g, '').replace(/\s/g, '');
+    
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(cleaned) && cleaned.length > 30) {
         try {
-            const decoded = Buffer.from(val, 'base64').toString('utf8');
-            // Basic sanity check: did we get something useful?
-            if (decoded.includes('{') || decoded.includes('PRIVATE KEY')) return decoded;
-        } catch (e) { /* ignore and return original */ }
+            const decoded = Buffer.from(cleaned, 'base64').toString('utf8');
+            if (decoded.includes('{') || decoded.includes('PRIVATE KEY')) {
+                console.log(`[BASE64-DECODE] SUCCESS for variable (starts with ${decoded.substring(0, 5)}...)`);
+                return decoded;
+            }
+        } catch (e) { console.error(`[BASE64-DECODE] Error: ${e.message}`); }
     }
     return val;
 }

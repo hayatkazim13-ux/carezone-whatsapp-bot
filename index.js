@@ -14,15 +14,21 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// Helper to decode Base64 secrets (fixes Railway's secret mangling)
+// Robust Helper to decode Base64 secrets
 function decodeSecret(val) {
     if (!val) return "";
-    val = val.trim().replace(/^['"]|['"]$/g, '');
-    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(val) && val.length > 30) {
+    // Clean outer quotes and ALL INTERNAL whitespace/newlines
+    let cleaned = val.trim().replace(/^['"]|['"]$/g, '').replace(/\s/g, '');
+    
+    // Check if it's base64 (only safe characters)
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(cleaned) && cleaned.length > 30) {
         try {
-            const decoded = Buffer.from(val, 'base64').toString('utf8');
-            if (decoded.length > 5) return decoded;
-        } catch (e) { /* ignore */ }
+            const decoded = Buffer.from(cleaned, 'base64').toString('utf8');
+            if (decoded.length > 5) {
+                console.log(`[BASE64-DECODE] SUCCESS for variable (starts with ${decoded.substring(0, 5)}...)`);
+                return decoded;
+            }
+        } catch (e) { console.error(`[BASE64-DECODE] Error: ${e.message}`); }
     }
     return val;
 }
