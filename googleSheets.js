@@ -18,11 +18,19 @@ async function getSheetsConfig() {
             console.log(`[DEBUG] Using Google Service Account: ${email}`);
             
             if (creds.private_key) {
+                // Nuclear Scrubbing: Remove EVERYTHING suspicious
                 creds.private_key = creds.private_key
-                    .replace(/\\n/g, '\n')
-                    .replace(/^['"]|['"]$/g, '')
-                    .replace(/\r/g, '') // Remove carriage returns
+                    .replace(/\\n/g, '\n')   // Fix escaped newlines
+                    .replace(/\r/g, '')      // Remove carriage returns
+                    .replace(/^['"]|['"]$/g, '') // Remove outer quotes
                     .trim();
+                
+                // Heads & Tails Diagnostic (Masked)
+                const pk = creds.private_key;
+                const head = pk.substring(0, 25).replace(/\n/g, '[NL]');
+                const tail = pk.substring(pk.length - 25).replace(/\n/g, '[NL]');
+                console.log(`[SECRET-CHECK] Private Key Head: ${head}...`);
+                console.log(`[SECRET-CHECK] Private Key Tail: ...${tail}`);
             }
             authOptions.credentials = creds;
             console.log("[DEBUG] Google Credentials parsed and cleaned successfully.");

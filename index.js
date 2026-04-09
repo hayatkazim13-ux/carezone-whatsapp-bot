@@ -14,8 +14,16 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// Clean the API Key (Remove quotes if added by the environment)
-const cleanApiKey = process.env.GEMINI_API_KEY.trim().replace(/^['"]|['"]$/g, '');
+// Defensive key cleaning
+const cleanApiKey = (process.env.GEMINI_API_KEY || "")
+    .replace(/^['"]|['"]$/g, '') // Remove outer quotes
+    .replace(/\s+/g, '')        // Remove all whitespace
+    .trim();
+
+// Heads & Tails Diagnostic (Masked)
+if (cleanApiKey) {
+    console.log(`[SECRET-CHECK] Gemini Key: ${cleanApiKey.substring(0, 4)}...${cleanApiKey.substring(cleanApiKey.length - 4)} (Length: ${cleanApiKey.length})`);
+}
 
 // --- EXTREMELY DEFENSIVE GEMINI INITIALIZATION ---
 let GoogleGenerativeAI;
