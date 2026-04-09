@@ -14,8 +14,21 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
+// Helper to decode Base64 secrets (fixes Railway's secret mangling)
+function decodeSecret(val) {
+    if (!val) return "";
+    val = val.trim().replace(/^['"]|['"]$/g, '');
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(val) && val.length > 30) {
+        try {
+            const decoded = Buffer.from(val, 'base64').toString('utf8');
+            if (decoded.length > 5) return decoded;
+        } catch (e) { /* ignore */ }
+    }
+    return val;
+}
+
 // Defensive key cleaning
-const cleanApiKey = (process.env.GEMINI_API_KEY || "")
+const cleanApiKey = decodeSecret(process.env.GEMINI_API_KEY || "")
     .replace(/^['"]|['"]$/g, '') // Remove outer quotes
     .replace(/\s+/g, '')        // Remove all whitespace
     .trim();

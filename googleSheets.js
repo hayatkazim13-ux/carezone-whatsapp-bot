@@ -1,5 +1,20 @@
 const { google } = require('googleapis');
 
+// Helper to decode Base64 secrets (fixes Railway's secret mangling)
+function decodeSecret(val) {
+    if (!val) return "";
+    val = val.trim().replace(/^['"]|['"]$/g, '');
+    // If it looks like base64 (no spaces, long, and only b64 chars)
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(val) && val.length > 30) {
+        try {
+            const decoded = Buffer.from(val, 'base64').toString('utf8');
+            // Basic sanity check: did we get something useful?
+            if (decoded.includes('{') || decoded.includes('PRIVATE KEY')) return decoded;
+        } catch (e) { /* ignore and return original */ }
+    }
+    return val;
+}
+
 // Helper to authenticate
 async function getSheetsConfig() {
     let authOptions = {
@@ -9,9 +24,8 @@ async function getSheetsConfig() {
     // If running on Railway/Cloud, use the environment variable
     if (process.env.GOOGLE_CREDENTIALS) {
         try {
-            // Extreme cleanup for Railway environments where quotes might be added to the secret
-            let rawCreds = process.env.GOOGLE_CREDENTIALS || "";
-            rawCreds = rawCreds.trim().replace(/^['"]|['"]$/g, '');
+            // Use Base64-aware decoding
+            let rawCreds = decodeSecret(process.env.GOOGLE_CREDENTIALS);
             
             const creds = JSON.parse(rawCreds);
             const email = creds.client_email || "MISSING";
