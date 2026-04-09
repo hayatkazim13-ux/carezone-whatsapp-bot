@@ -361,40 +361,46 @@ Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
 `;
 
-        // --- ROBUST AI GENERATION WITH FALLBACK ---
-        let result;
-        let finalModelUsed = "";
+        // --- ROBUST RAW AI GENERATION (Bypasses all SDK Bugs) ---
+        let reply = "";
+        let finalModelUsed = "gemini-1.5-flash (Raw)";
         
-        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-        
-        for (const modelName of modelsToTry) {
+        try {
+            console.log(`[AI-RAW] Sending direct POST request to Gemini v1 Stable...`);
+            
+            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+            
+            const payload = {
+                contents: chatMemory[from],
+                systemInstruction: { parts: [{ text: systemInstruction }] }
+            };
+
+            const axiosResponse = await axios.post(url, payload, {
+                headers: { 'Content-Type': 'application/json' },
+                timeout: 30000 // 30 second timeout
+            });
+
+            if (axiosResponse.data && axiosResponse.data.candidates && axiosResponse.data.candidates[0]) {
+                reply = axiosResponse.data.candidates[0].content.parts[0].text;
+            } else {
+                throw new Error("Empty response from Gemini API");
+            }
+        } catch (rawError) {
+            console.error(`[AI-RAW] v1 Stable failed:`, rawError.message);
+            
+            // Fallback to v1beta if v1 fails
             try {
-                console.log(`[AI-TRY] Attempting with model: ${modelName}...`);
-                const modelInstance = ai.getGenerativeModel({ 
-                    model: modelName,
-                    systemInstruction: systemInstruction 
-                });
-                
-                result = await modelInstance.generateContent({
-                    contents: chatMemory[from]
-                });
-                
-                if (result && result.response) {
-                    finalModelUsed = modelName;
-                    break; // Success!
-                }
-            } catch (err) {
-                console.error(`[AI-TRY] Model ${modelName} failed:`, err.message);
-                // Continue to next model
+                console.log(`[AI-RAW] Fallback: Sending to v1beta...`);
+                const urlBeta = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+                const axiosResponseBeta = await axios.post(urlBeta, payload, { headers: { 'Content-Type': 'application/json' } });
+                reply = axiosResponseBeta.data.candidates[0].content.parts[0].text;
+                finalModelUsed = "gemini-1.5-flash (Raw-v1beta)";
+            } catch (betaError) {
+                console.error(`[AI-RAW] v1beta also failed:`, betaError.message);
+                throw new Error("RAW Connection: All Google API endpoints are unreachable from this network.");
             }
         }
 
-        if (!result || !result.response) {
-            throw new Error("All Gemini models failed to generate a response. Please check your API quota and availability.");
-        }
-
-        const response = result.response;
-        let reply = response.text();
         console.log(`[AI SUCCESS] Used ${finalModelUsed}. Response start: "${reply.substring(0, 50)}..."`);
 
         // --- HARDCODED SAFETY CATCH-ALL ---
