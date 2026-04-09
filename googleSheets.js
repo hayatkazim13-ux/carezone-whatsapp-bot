@@ -1,21 +1,28 @@
 const { google } = require('googleapis');
 
-// Robust Helper to decode Base64 secrets
+// Robust Dual-Mode Helper to decode or clean secrets
 function decodeSecret(val) {
     if (!val) return "";
-    // Clear quotes and INTERNAL whitespace/newlines
-    let cleaned = val.trim().replace(/^['"]|['"]$/g, '').replace(/\s/g, '');
+    let cleaned = val.trim().replace(/^['"]|['"]$/g, '');
     
-    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(cleaned) && cleaned.length > 30) {
+    // 1. If it's already a valid plain JSON string or Private Key, return it cleaned
+    if (cleaned.includes('{') || cleaned.includes('PRIVATE KEY')) {
+        return cleaned.replace(/\\n/g, '\n'); // Ensure newlines are restored
+    }
+
+    // 2. Otherwise, check if it's Base64
+    let stripped = cleaned.replace(/\s/g, '');
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(stripped) && stripped.length > 50) {
         try {
-            const decoded = Buffer.from(cleaned, 'base64').toString('utf8');
+            const decoded = Buffer.from(stripped, 'base64').toString('utf8');
             if (decoded.includes('{') || decoded.includes('PRIVATE KEY')) {
-                console.log(`[BASE64-DECODE] SUCCESS for variable (starts with ${decoded.substring(0, 5)}...)`);
+                console.log(`[DUAL-MODE] SUCCESS: Decoded Base64 Credentials`);
                 return decoded;
             }
-        } catch (e) { console.error(`[BASE64-DECODE] Error: ${e.message}`); }
+        } catch (e) { /* fallback */ }
     }
-    return val;
+    
+    return cleaned;
 }
 
 // Helper to authenticate

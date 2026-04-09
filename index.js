@@ -14,23 +14,29 @@ if (!process.env.GEMINI_API_KEY) {
     process.exit(1);
 }
 
-// Robust Helper to decode Base64 secrets
+// Robust Dual-Mode Helper to decode or clean secrets
 function decodeSecret(val) {
     if (!val) return "";
-    // Clean outer quotes and ALL INTERNAL whitespace/newlines
-    let cleaned = val.trim().replace(/^['"]|['"]$/g, '').replace(/\s/g, '');
+    let cleaned = val.trim().replace(/^['"]|['"]$/g, '');
     
-    // Check if it's base64 (only safe characters)
-    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(cleaned) && cleaned.length > 30) {
-        try {
-            const decoded = Buffer.from(cleaned, 'base64').toString('utf8');
-            if (decoded.length > 5) {
-                console.log(`[BASE64-DECODE] SUCCESS for variable (starts with ${decoded.substring(0, 5)}...)`);
-                return decoded;
-            }
-        } catch (e) { console.error(`[BASE64-DECODE] Error: ${e.message}`); }
+    // 1. If it's already a valid plain key, return it cleaned
+    if (cleaned.startsWith('AIza')) {
+        return cleaned.replace(/\s/g, ''); // For Gemini, remove all whitespace
     }
-    return val;
+
+    // 2. Otherwise, check if it looks like base64
+    let stripped = cleaned.replace(/\s/g, '');
+    if (/^[a-zA-Z0-9+/]*={0,2}$/.test(stripped) && stripped.length > 20) {
+        try {
+            const decoded = Buffer.from(stripped, 'base64').toString('utf8');
+            if (decoded.startsWith('AIza')) {
+                console.log(`[DUAL-MODE] SUCCESS: Decoded Base64 Gemini Key`);
+                return decoded.trim().replace(/\s/g, '');
+            }
+        } catch (e) { /* fallback */ }
+    }
+    
+    return cleaned;
 }
 
 // Defensive key cleaning
