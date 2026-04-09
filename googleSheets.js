@@ -5,9 +5,12 @@ function decodeSecret(val) {
     if (!val) return "";
     let cleaned = val.trim().replace(/^['"]|['"]$/g, '');
     
+    // Helper to remove invisible control characters that break JSON.parse
+    const sanitize = (s) => s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").trim();
+
     // 1. If it's already a valid plain JSON string or Private Key, return it cleaned
     if (cleaned.includes('{') || cleaned.includes('PRIVATE KEY')) {
-        return cleaned.replace(/\\n/g, '\n'); // Ensure newlines are restored
+        return sanitize(cleaned).replace(/\\n/g, '\n'); 
     }
 
     // 2. Otherwise, check if it's Base64
@@ -17,12 +20,12 @@ function decodeSecret(val) {
             const decoded = Buffer.from(stripped, 'base64').toString('utf8');
             if (decoded.includes('{') || decoded.includes('PRIVATE KEY')) {
                 console.log(`[DUAL-MODE] SUCCESS: Decoded Base64 Credentials`);
-                return decoded;
+                return sanitize(decoded);
             }
         } catch (e) { /* fallback */ }
     }
     
-    return cleaned;
+    return sanitize(cleaned);
 }
 
 // Helper to authenticate

@@ -361,10 +361,12 @@ Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
 `;
 
-        // --- ROBUST RAW AI GENERATION (Stealth Mode) ---
+        // --- ROBUST RAW AI GENERATION (Stealth Mode + Retry Loop) ---
         let reply = "";
-        let finalModelUsed = "gemini-1.5-flash (Stealth-v1)";
-        
+        let finalModelUsed = "";
+        let retryCount = 0;
+        const maxRetries = 3;
+
         const stealthHeaders = {
             'Content-Type': 'application/json',
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -372,44 +374,55 @@ ${JSON.stringify(liveProducts, null, 2)}
             'x-goog-api-client': 'gl-js/2.0.0'
         };
 
-        try {
-            console.log(`[AI-STEALTH] Sending masked request to Gemini v1 Stable...`);
-            
-            const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
-            
-            const payload = {
-                contents: chatMemory[from],
-                systemInstruction: { parts: [{ text: systemInstruction }] }
-            };
+        const payload = {
+            contents: chatMemory[from],
+            systemInstruction: { parts: [{ text: systemInstruction }] }
+        };
 
-            const axiosResponse = await axios.post(url, payload, {
-                headers: stealthHeaders,
-                timeout: 30000 
-            });
-
-            if (axiosResponse.data && axiosResponse.data.candidates && axiosResponse.data.candidates[0]) {
-                reply = axiosResponse.data.candidates[0].content.parts[0].text;
-            } else {
-                throw new Error("Empty response from Stealth API");
-            }
-        } catch (rawError) {
-            console.error(`[AI-STEALTH] v1 failed:`, rawError.message);
-            
-            // Fallback to v1beta with stealth
+        while (retryCount < maxRetries) {
             try {
-                console.log(`[AI-STEALTH] Fallback: Sending masked v1beta...`);
-                const urlBeta = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
-                const axiosResponseBeta = await axios.post(urlBeta, payload, { headers: stealthHeaders });
-                reply = axiosResponseBeta.data.candidates[0].content.parts[0].text;
-                finalModelUsed = "gemini-1.5-flash (Stealth-v1beta)";
-            } catch (betaError) {
-                console.error(`[AI-STEALTH] v1beta also failed:`, betaError.message);
-                throw new Error("RAW Connection: All Google API endpoints are unreachable from this network.");
+                console.log(`[AI-STEALTH] Attempt ${retryCount + 1}/${maxRetries}: Sending masked request to Gemini...`);
+                
+                // Try v1 first (more stable)
+                const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+                const axiosResponse = await axios.post(url, payload, { headers: stealthHeaders, timeout: 20000 });
+
+                if (axiosResponse.data && axiosResponse.data.candidates && axiosResponse.data.candidates[0]) {
+                    reply = axiosResponse.data.candidates[0].content.parts[0].text;
+                    finalModelUsed = "gemini-1.5-flash (Stealth-v1)";
+                    break; 
+                }
+            } catch (err) {
+                console.error(`[AI-STEALTH] Attempt ${retryCount + 1} failed:`, err.message);
+                
+                // On last attempt, try v1beta as a final hail mary
+                if (retryCount === maxRetries - 1) {
+                    try {
+                        console.log(`[AI-STEALTH] Final Hail Mary: Trying v1beta...`);
+                        const urlBeta = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${cleanApiKey}`;
+                        const axiosResponseBeta = await axios.post(urlBeta, payload, { headers: stealthHeaders });
+                        reply = axiosResponseBeta.data.candidates[0].content.parts[0].text;
+                        finalModelUsed = "gemini-1.5-flash (Stealth-v1beta)";
+                        break;
+                    } catch (betaErr) {
+                         console.error(`[AI-STEALTH] Final Hail Mary failed:`, betaErr.message);
+                    }
+                }
+                
+                retryCount++;
+                if (retryCount < maxRetries) {
+                    console.log(`[AI-RETRY] Waiting 2s before next attempt...`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                }
             }
         }
 
-        console.log(`[AI SUCCESS] Used ${finalModelUsed}. Response start: "${reply.substring(0, 50)}..."`);
+        if (!reply) {
+            throw new Error("RAW Connection: All Google API endpoints are unreachable from this network after 3 retries.");
+        }
 
+        console.log(`[AI SUCCESS] Used ${finalModelUsed} on attempt ${retryCount + 1}. Response start: "${reply.substring(0, 50)}..."`);
+旋
         // --- HARDCODED SAFETY CATCH-ALL ---
         // We use keywords AND regex for common variations or misspellings
         const negativeKeywords = [
