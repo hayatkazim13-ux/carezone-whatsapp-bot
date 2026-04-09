@@ -67,70 +67,10 @@ try {
     model = ai.getGenerativeModel({ model: 'gemini-pro' });
 }
 
-// --- DEEP NETWORK RESCUE ---
-async function runMasterDiagnostic() {
-    console.log("[MASTER-CHECK] Starting Deep Network Diagnostics...");
-    const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    
-    try {
-        // 1. Server Time Verification
-        console.log(`[MASTER-CHECK] SERVER TIME: ${new Date().toISOString()}`);
-        
-        // 2. DNS resolution for Google APIs
-        const domains = ['generativelanguage.googleapis.com', 'google.com', 'www.googleapis.com'];
-        for (const domain of domains) {
-            try {
-                const addresses = await dns.resolve4(domain);
-                console.log(`[MASTER-CHECK] DNS Lookup ${domain}: SUCCESS (${addresses[0]})`);
-            } catch (e) {
-                console.error(`[MASTER-CHECK] DNS Lookup ${domain}: FAILED (${e.code})`);
-            }
-        }
-        
-        // 3. Fallback IP Checkers (With Spoofed User-Agent)
-        const ipCheckers = ['https://api.ipify.org?format=json', 'https://ifconfig.me/all.json'];
-        for (const url of ipCheckers) {
-            try {
-                const ipRes = await axios.get(url, { headers: { 'User-Agent': USER_AGENT }, timeout: 5000 });
-                console.log(`[MASTER-CHECK] IP CHECK (${url}): SUCCESS`);
-            } catch (e) {
-                console.error(`[MASTER-CHECK] IP CHECK (${url}): FAILED`);
-            }
-        }
-    } catch (e) {
-        console.error("[MASTER-CHECK] Preliminary checks encountered errors.");
-    }
+// --- CONFIGURATION FINISHED ---
+// The bot is ready to start. 
+console.log("[STARTUP] Bot is initializing. Ready for WhatsApp scan...");
 
-    // 4. Test Multi-Model Compatibility and Auto-Select
-    const modelsToTest = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
-    const versions = ['v1', 'v1beta'];
-    let workingModel = null;
-
-    console.log(`[MASTER-CHECK] API Key Verify: length=${cleanApiKey.length}, starts with: ${cleanApiKey.substring(0, 4)}...`);
-    console.log("[MASTER-CHECK] Testing Model Compatibility...");
-    for (const m of modelsToTest) {
-        for (const v of versions) {
-            try {
-                const safeKey = encodeURIComponent(cleanApiKey);
-                const url = `https://generativelanguage.googleapis.com/${v}/models/${m}:generateContent?key=${safeKey}`;
-                const data = { contents: [{ parts: [{ text: "hi" }] }] };
-                await axios.post(url, data, { headers: { 'User-Agent': USER_AGENT }, timeout: 10000 });
-                console.log(`[MASTER-CHECK] Model ${m} (${v}): WORKING!`);
-                if (!workingModel) workingModel = m;
-            } catch (e) {
-                // Silently skip failed models
-            }
-        }
-    }
-    
-    if (workingModel) {
-        console.log(`[MASTER-CHECK] FINAL SUCCESS: Bot will use ${workingModel}`);
-    } else {
-        console.error("[MASTER-CHECK] ALL MODELS FAILED. Please check if your Gemini API key is active in Google AI Studio.");
-    }
-}
-runMasterDiagnostic();
-// --- END DEEP NETWORK RESCUE ---
 // Clean the admin phone number to contain only numbers (strips '+' and spaces)
 const adminPhoneRaw = process.env.ADMIN_PHONE_NUMBER || "";
 const adminPhone = adminPhoneRaw.replace(/[^0-9]/g, '');
