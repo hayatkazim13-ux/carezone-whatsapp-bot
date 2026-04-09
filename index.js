@@ -361,19 +361,41 @@ Live Catalogue:
 ${JSON.stringify(liveProducts, null, 2)}
 `;
 
-        // Send chat history to Gemini
-        const modelInstance = ai.getGenerativeModel({ 
-            model: 'gemini-1.5-flash',
-            systemInstruction: systemInstruction 
-        });
+        // --- ROBUST AI GENERATION WITH FALLBACK ---
+        let result;
+        let finalModelUsed = "";
+        
+        const modelsToTry = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'];
+        
+        for (const modelName of modelsToTry) {
+            try {
+                console.log(`[AI-TRY] Attempting with model: ${modelName}...`);
+                const modelInstance = ai.getGenerativeModel({ 
+                    model: modelName,
+                    systemInstruction: systemInstruction 
+                });
+                
+                result = await modelInstance.generateContent({
+                    contents: chatMemory[from]
+                });
+                
+                if (result && result.response) {
+                    finalModelUsed = modelName;
+                    break; // Success!
+                }
+            } catch (err) {
+                console.error(`[AI-TRY] Model ${modelName} failed:`, err.message);
+                // Continue to next model
+            }
+        }
 
-        const result = await modelInstance.generateContent({
-            contents: chatMemory[from]
-        });
+        if (!result || !result.response) {
+            throw new Error("All Gemini models failed to generate a response. Please check your API quota and availability.");
+        }
 
         const response = result.response;
         let reply = response.text();
-        console.log(`[AI Response for ${from}]: "${reply.substring(0, 100)}..."`);
+        console.log(`[AI SUCCESS] Used ${finalModelUsed}. Response start: "${reply.substring(0, 50)}..."`);
 
         // --- HARDCODED SAFETY CATCH-ALL ---
         // We use keywords AND regex for common variations or misspellings
